@@ -1,58 +1,48 @@
 pipeline {
+    
     agent any
+    
     environment {
-        IMAGE_NAME = 'sanjeevkt720/jenkins-flask-app'
-        IMAGE_TAG = "${IMAGE_NAME}:${env.BUILD_NUMBER}"
-        KUBECONFIG = credentials('kubeconfig-credentials-id')
-
+        
+        IMAGE_NAME = "dumalbhaskar/flask-app:${BUILD_NUMBER}"
     }
-    stages {
 
-        stage('Checkout') {
+    stages {
+        
+        stage('checkout') {
             steps {
-                git url: 'https://github.com/kodekloudhub/jenkins-project.git', branch: 'main'
-                sh "ls -ltr"
+                
+               git branch: 'main', url: 'https://github.com/DumalBhaskar/jenkins-project.git'
             }
         }
-        stage('Setup') {
+        
+        stage('image-build') {
             steps {
-                sh "pip install -r requirements.txt"
+                
+                sh 'docker build -t ${IMAGE_NAME} .'
             }
         }
-        stage('Test') {
+        
+        stage('image-push') {
             steps {
-                sh "pytest"
-                sh "whoami"
+                script{
+                    
+                     withDockerRegistry(credentialsId: 'docker-cred') {
+                    
+                        sh 'docker push ${IMAGE_NAME}'
+                    
+                    }
+                }
+               
             }
         }
-        stage('Login to docker hub') {
-            steps {
-                withCredentials([string(credentialsId: 'dockerhubpwd', variable: 'dockerhubpwd')]) {
-                sh 'echo ${dockerhubpwd} | docker login -u sanjeevkt720 --password-stdin'}
-                echo 'Login successfully'
-            }
-        }
-        stage('Build Docker Image')
-        {
-            steps
-            {
-                sh 'docker build -t ${IMAGE_TAG} .'
-                echo "Docker image build successfully"
-                sh "docker images"
-            }
-        }
-        stage('Push Docker Image')
-        {
-            steps
-            {
-                sh 'docker push ${IMAGE_TAG}'
-                echo "Docker image push successfully"
-            }
-        }
-        stage('Deploy to EKS Cluster') {
-            steps {
-                sh "kubectl apply -f deployment.yaml"
-                echo "Deployed to EKS Cluster"
+        
+        
+        stage("TRIVY"){
+            steps{
+                catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+                    sh "trivy image --no-progress --exit-code 1 --severity MEDIUM,HIGH,CRITICAL --format table ${IMAGE_NAME}"
+                 }   
             }
         }
     }
