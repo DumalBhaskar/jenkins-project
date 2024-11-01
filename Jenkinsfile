@@ -9,12 +9,35 @@ pipeline {
 
     stages {
         
-        stage('checkout') {
+        // stage('checkout') {
+        //     steps {
+                
+        //        git branch: 'main', url: 'https://github.com/DumalBhaskar/jenkins-project.git'
+        //     }
+        // }
+
+
+        stage ("lint dockerfile") {
+            
             steps {
                 
-               git branch: 'main', url: 'https://github.com/DumalBhaskar/jenkins-project.git'
+                catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+                    
+                    sh 'docker run --rm -i hadolint/hadolint < Dockerfile > report.txt'
+   
+                }
+                
+                
+            }
+    
+        }
+        
+        stage('Archive Output') {
+            steps {
+                archiveArtifacts artifacts: 'report.txt', allowEmptyArchive: true
             }
         }
+
         
         stage('image-build') {
             steps {
